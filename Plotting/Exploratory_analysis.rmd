@@ -1,0 +1,353 @@
+---
+title: "Exploratory Analysis of Hospital Data in US"
+author: "Kishore"
+date: "14th September 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r echo=FALSE}
+#To load external libraries
+library(ggplot2)
+```
+
+
+
+###Questions:
+1. In the hospital-data.csv:
+    +   How many cities, counties, states, Hospital types and ownership types are there?
+    +   Overall distribution of emergency service availability.
+    +   Distribution of hospitals in top 15 states
+    +   Study heat maps and the way to produce them in R
+    +   A heat map of hospital ownership types in each state. (Are there particular states where hospitals of a particular kind are found very frequently?)
+2.  In the outcome-of-care-measures.csv file:
+    +   Histograms of the mortality rates due to heart attack, heart failure and pneumonia. individual, paired and triple parameter histograms to be made.
+    +   State-wise incidence of heart attack, heart failure and pneumonia. (Are there states where the incidence of disease is high? Can this be linked to the kind of hospitals in those states?)
+    +   Come up with a function to reduce the column names' length. RegEx can be explored for this.
+
+
+
+
+###Hospital information: "hospital-data.csv"
+
+The structure of the data, obtained by the *str()* function is given below.
+```{r eval=TRUE}
+Hospital_data <- read.csv("hospital-data.csv", colClasses = "character")
+str(Hospital_data)
+```
+
+The dataset provides basic information about the identity and location of the hospital, along with a few extra bits like the ownership, type and availability of emergency services. 
+
+####Number of states, counties etc..
+
+The number of states in the states column can be obtained by evaluating the length of the *unique()* function as below:
+```{r eval=TRUE}
+length(unique(Hospital_data$State))
+```
+Similarly the number of unique values in the other columns can be evaluated to be the following:
+
+```{r eval=TRUE, echo=FALSE}
+print(paste("Number of states are:", states <- length(unique(Hospital_data$State))))
+print(paste("Number of Counties are:", counties <- length(unique(Hospital_data$County))))
+print(paste("Number of Cities are:", cities <- length(unique(Hospital_data$City))))
+print(paste("Number of Hospital types are:", hospital_types <- length(unique(Hospital_data$Hospital.Type))))
+print(paste("Number of types of Hospital ownerships are:", ownerships <- length(unique(Hospital_data$Hospital.Ownership))))
+```
+
+On an average there are  cities per county and about 28 counties per state. The ownership data is misleading due to a data-entry inconsostancy, as shown below.
+```{r echo=FALSE}
+for (i in unique(Hospital_data$Hospital.Ownership))
+    print(i)
+```
+All the types more than one word have been counted twice due to insertion of additional spaces and hyphens. This can be rectified using Regular expression function *gsub*, which takes 3 arguments, the regular expression, the character string to replace the expression with and a vector of target strings. It replaces all the occurences of the regular expression.
+
+```{r}
+Hospital_data$Hospital.Ownership <- gsub(" +", ".", gsub("-", " ", Hospital_data$Hospital.Ownership)) #To remove duplicates
+Hospital_data$Hospital.Ownership <- gsub("non.profit.", "", Hospital_data$Hospital.Ownership) #To simplify the names
+Hospital_data$Hospital.Ownership <- gsub("Government", "Govt", Hospital_data$Hospital.Ownership)
+unique(Hospital_data$Hospital.Ownership)
+```
+
+####Distribution showing the emergency service availability...
+
+The emergency service availability is given in "Emergency.Services" column. The data can be represented in the form of the frequency table below, 
+```{r echo=FALSE}
+emergency_avail <- table(Hospital_data$Emergency.Services)
+emergency_avail
+```
+
+```{r echo=FALSE}
+names(emergency_avail) = c("No","Data Not Available", "Yes")
+```
+which then can be converted into a bargraph
+```{r}
+barplot(emergency_avail,
+        log = "y", 
+        col = c("Red", "Grey", "Green"), 
+        xlab = "Availability of Emergency services", 
+        ylab = "# of Hospitals", 
+        main = "Distribution of Emergency service availability in the hospitals",
+        ylim = c(1,5000))
+box()
+```
+
+About 95% hospitals have emergency services available, ~4% don't and for ~1% hospitals the data is not available. For the hospitals that do not have emergency services, geographical location (state) and hospital ownership. Additional factors could be monetary, hospital specializations etc.
+
+```{r}
+emergency_na <- Hospital_data[Hospital_data$Emergency.Services == "No", ]
+heatmap(table(emergency_na$Hospital.Ownership, emergency_na$State), Rowv = NA, Colv = NA)
+barplot(sort(table(emergency_na$Hospital.Ownership), decreasing = TRUE), col = rainbow(8), xlab = "Hospital Ownership", ylab = "Number of Hospitals", main = "Lack of emergency services w.r.t. Hospital Ownership", las = 3)
+
+barplot(sort(table(emergency_na$State), decreasing = TRUE)[1:30], col = rainbow(30), xlab = "States", ylab = "Number of Hospitals", main = "Lack of emergency services w.r.t. States", las = 3)
+```
+
+These plots show that Proprietary and Voluntary Private hospitals comprise most(~70%) of the hospitals lacking emergency services. The states however, do not have a significant contribution to the number individually. The distribution looks like a poisson distribution and could indicate that there is little correlation between lack of emergency services and geography/states.
+There could, however, be other factors for which data is not available here.
+
+####Distribution of hospitals in top 15 states
+
+The top 15 states can be obtained by first getting a frequency table, sorting it and taking the first 15 as follows:
+```{r}
+First_15_states <- sort(table(Hospital_data$State), decreasing = TRUE)[1:15]
+First_15_states
+```
+Similarly, the bottom 15 states can be obtained and a barplot can serve well in visualizing the distribution
+```{r warning=FALSE}
+Statewise_data <- sort(table(Hospital_data$State), decreasing = TRUE)
+attach(Hospital_data)
+par(mfrow = c(1,2))
+barplot(sort(table(State), decreasing = TRUE)[1:15], width = 2, col = rainbow(20), xlab = "States", ylab = "# of Hospitals", main = "Distribution of Hospitals over States", las = 3)
+barplot(sort(table(State))[15:1], width = 2, col = rainbow(20), xlab = "States", ylab = "# of Hospitals", main = "Distribution of Hospitals over States", las = 3)
+```
+
+TX and CA having the maximum number of hospitals can explain finding the bigger fraction of hospitals lacking emergency services in these areas. For a better picture of the overall distribution, a scatter plot with states renamed with numbers from 1 to 56 is given below. The least number of hospitals in a state is 1 (AS, GU and MP) while the highest is more than 350 in TX and CA. CA and TX have maximum population (source: http://www.ipl.org/div/stateknow/popchart.html), followed by NY, FL and the other states pretty much in the same order as the number of hospitals. This indicates a possible positive correlation between state population and number of hospitals.
+
+```{r echo=FALSE}
+plot(1:56, as.numeric(table(Hospital_data$State)), ylab = "Number of Hospitals", xlab = "States", col = "Red")
+```
+
+####A heatmap of hospital ownership type vs state
+
+A heatmap can help one visualize contingency tables and draw logical inferences. The heatmap function of basegraphics requires a numeric matrix/table. For the Ownership and state data, the table has been generated below. 
+
+```{r}
+ownership_data <- table(Hospital_data$Hospital.Ownership, Hospital_data$State)
+heatmap(ownership_data, Rowv = NA, Colv = NA, col = rainbow(20), xlab = "States", ylab = "Hospital Ownership", main = "Hospital density")
+```
+
+Not much information is evident from the heatmap about the distribution of hospital ownerships over the states.One of the reasons is that the color intensities are biased by the total number of hospitals in a state. This can be eliminated by converting the data into fractions:
+```{r}
+ownership_freq <- apply(ownership_data, 2, function(x)(replace(x, 1:length(x), x/sum(x))))
+heatmap(ownership_freq, Rowv = NA, Colv = NA)
+```
+The fraction of Government State hospitals seems to have been maintained throughout the states. States having a good fraction of Government Local hospitals have significantly lesser fractions of other types of hospitals. These states could be the country reegion of the U.S. 
+A better representation here could be to have a single row heatmap showing the total number of hospitals in each state along with the fractions plot. That way, the 2 characteristics are separated without any data loss. 
+
+###Outcome of care data: "outcome-of-care.csv"
+
+The structure of the outcome data is as follows:
+
+```{r echo=FALSE}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+str(outcome)
+```
+
+There is 46 columns of information about 4706 hospitals in U.S. First 10 columns provide information about the identity and location of the hospitals. 
+The remaining 36 columns provide disease specific statistics of the hospitals in two sections, mortality and readmission. each section can further be divided into 3 diseases - Heart Attack, Heart Failure and Pneumonia. Each disease has 6 columns of information namely the rate of mortality/readmission, comparision to U.S. average, Lower and Upper mortality/readmission estimates, number of patients and a Footnote. 
+
+
+####Histograms for mortality rates from heart attack, heart failure and pneumonia
+```{r warning=FALSE}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack)
+
+hist(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack,
+     xlab = "30 day Mortality Rates", 
+     main = "Histogram of mortality rates",
+     xlim = c(6,21),
+     col=rgb(0,0,1,1/4),
+     breaks = 40,
+     ylim = c(0,600),
+     border = F
+     )
+
+
+
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure)
+
+hist(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure,
+     col=rgb(0,0.5,1,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F
+     )
+
+
+
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia)
+
+hist(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia,
+     col=rgb(1,0,0,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F)
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Attack", "Heart Failure", "Pneumonia"), 
+       fill = c(rgb(0,0,1,1/4), rgb(0,0.5,1,1/4), rgb(1,0,0,1/4)))
+
+```
+
+The mortality rate from Heart Attack is higher than that of Pneumonia or Heart Failure, which seem to have fairly similar mortality rates. 
+
+
+####State-wise incidence of Heart attack, Heart failure and Pneumonia
+
+The statewise incidence can be best observed using the heatmap below.
+
+```{r echo=FALSE, warning=FALSE}
+data <- rbind(tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack), outcome$State, sum, na.rm = TRUE),
+                         tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure), outcome$State, sum, na.rm = TRUE),
+                                    tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia), outcome$State, sum, na.rm = TRUE))
+
+colnames(data) <- unique(outcome$State)
+rownames(data) <- c("Heart Attack", "Heart Failure", "Pneumonia")
+
+heatmap(data, Rowv = NA, Colv = NA)
+```
+
+
+###Using ggplot2:
+*ggplot2* is a package for elegant graph making which defines graphs as a set of consistent objects which can be added together to make the plot (grammar of graphics). In this section, I try to reproduce the graphs above using ggplot2.
+
+```{r warning=FALSE}
+df_emergency <- data.frame(emergency_avail)
+ggplot(df_emergency, aes(Var1, log(Freq), fill = Var1)) + 
+    geom_bar(stat = "identity") + 
+    labs(x = "Availability of Emergency services",
+         y = "Log of number of hospitals", 
+         title = "Emergency service availability over all the hospitals",
+         fill = NULL) +
+    theme_bw()
+
+df_first15 <- data.frame(First_15_states)
+ggplot(df_first15, aes(Var1, Freq, fill = Var1)) + 
+    geom_bar(stat = "identity") +
+    labs(x = "State",
+         y = "Number of Hospitals",
+         title = "Distribution of Hospitals over states",
+         fill = NULL) +
+    theme_bw()
+
+df_heatmap_ownership <- data.frame(ownership_data)
+ggplot(df_heatmap_ownership, aes(Var1, Var2)) + 
+    geom_tile(aes(fill=Freq)) +
+     coord_flip() +
+    labs(y = "State",
+         x = "Hospital Ownership",
+         title = "Heatmap of Hospital ownership over states",
+         fill = "Number") +
+    theme(axis.text.x = element_text(size = 8, angle = 90)) + theme_gray(base_size = 8) +
+    scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+    theme(axis.text.x = element_text(size = 0.4 * 8))
+
+df_heatmap_ownership_freq <- data.frame(as.table(ownership_freq))
+ggplot(df_heatmap_ownership_freq, aes(Var1, Var2)) + 
+    geom_tile(aes(fill=Freq)) +
+     coord_flip() +
+    labs(y = "State",
+         x = "Hospital Ownership Fractions",
+         title = "Heatmap of Hospital ownership over states",
+         fill = "Fraction") +
+    theme(axis.text.x = element_text(size = 8, angle = 90)) + theme_gray(base_size = 8) +
+    scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+    theme(axis.text.x = element_text(size = 0.4 * 8))
+
+ggplot() + geom_histogram(aes(x=as.data.frame(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia), fill = "Pneumonia"), bins = 40) + 
+    geom_histogram(aes(x=as.data.frame(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack), fill = "Heart Attack"), bins = 40) +
+    geom_histogram(aes(x=as.data.frame(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure), fill = "Heart Failure"), bins = 40) +
+    labs(x = "30 day mortality rates",
+         y = "Frequency",
+         title = "Comparision of 30 day mortality rates of 3 diseases",
+         fill = "Diseases") +
+    theme_bw()
+
+states <- colnames(data)
+diseases <- rownames(data)
+states <- as.character(sapply(states, function(x) (rep(x,3))))
+diseases <- rep(diseases, 54)
+df_incidence_number <- data.frame(states, diseases, freq <- as.numeric(data))
+df_incidence_rate <- data.frame(states, diseases, freq_rate <- as.numeric(apply(data, 2, function(x) replace(x, 1:length(x), x/sum(x, na.rm = TRUE)))))
+
+ggplot(df_incidence_number, aes(states, diseases)) + 
+    geom_tile(aes(fill=freq)) +
+    labs(x = "State",
+         y = "Disease",
+         title = "Heatmap of disease incidence over states",
+         fill = "Number of recorded cases") +
+    theme(axis.text.x = element_text(size = 8, angle = 90)) + theme_gray(base_size = 8) +
+    scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+    theme(axis.text.x = element_text(size = 0.4 * 8))
+    
+
+ggplot(df_incidence_rate, aes(states, diseases)) + 
+    geom_tile(aes(fill=freq_rate)) +
+    labs(x = "State",
+         y = "Disease",
+         title = "Heatmap of disease incidence over states",
+         fill = "Fraction of cases recorded in a state") +
+    theme(axis.text.x = element_text(size = 8, angle = 90)) + theme_gray(base_size = 8) +
+    scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+    theme(axis.text.x = element_text(size = 0.4 * 8))
+```
+
+One observation while plotting the graphs is that ggplot2 is easy to get used to than base graphics as there is quite a bit of order in it. Even for multiple types of plots, only the geom changes and the rest of the parts remain similar.  The default color schemes in ggplot are better as well, especially for heatmaps. From the heatmaps of ownership fractions for instance, we can see that the fraction of Voluntary Private hospitals as compared to Government Federal hospitals is higher overall. For simple plots, however, basegraphics provide a very handy setup.
+
+###Reducing the size of column names of outcome-of-care data
+
+The column names of outcome of care data are as follows:
+```{r echo=FALSE}
+colnames_outcome <- colnames(outcome)
+colnames_outcome
+```
+
+The details of the columns have been discussed when describing the datset. By looking at the column names, we can see that "Hospital.30.Day." phrase has been repeated throughout. This does provide the information on the duration of data collection, but it can be provided in a desription of the dataset and hence can be removed from the columnnames. Similarly, the entire data only presents rates and hence that can also be removed from columnnames. Similarly, in mortality rates, the term death is usless hence can be removed. The phrases like "Upper Readmission Estimate" can be reduced to "Upper Estimate" as "Readmission" is already present in the name at the end.
+
+```{r}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+colnames_outcome <- colnames(outcome)
+patterns <- list("Hospital.30.Day.", "Rates.", "Death.", "from.")
+dummy <- lapply(patterns, function(x)(colnames_outcome <<- gsub(x, "", colnames_outcome)))
+patterns2 <- list("Readmission.Estimate", "Mortality.Estimate")
+dummy <- lapply(patterns2, function(x)(colnames_outcome <<- gsub(x, "Estimate", colnames_outcome)))
+colnames_outcome
+colnames(outcome) <- colnames_outcome
+```
+
+Furthermore, as explained in the description, the last 36 columns can be divided into 2 sections, which in turn can be divided into 3, each containing 6 columns of information. This can be used to format the data further. And for that, the sections must be grouped.
+
+```{r eval=FALSE}
+patterns3 <- list("....Mortality.*", "...Readmission.*")
+dummy <- lapply(patterns3, function(x)(colnames_outcome <<- gsub(x, "", colnames_outcome)))
+colnames(outcome) <- colnames_outcome
+basic_info <- outcome[,1:10]
+Heart_Attack <- outcome[11:16]
+Heart_Failure <- outcome[17:22]
+Pneumonia <- outcome[23:28]
+Mortality_Rate <- data.frame(Heart_Attack, Heart_Failure, Pneumonia)
+Heart_Attack <- outcome[29:34]
+Heart_Failure <- outcome[35:40]
+Pneumonia <- outcome[41:46]
+Readmission_Rate <- data.frame(Heart_Attack, Heart_Failure, Pneumonia)
+outcome_of_care <- list(basic_info, Mortality_Rate, Readmission_Rate)
+outcome_of_care$Mortality_Rate$Heart_Attack$Lower.Estimate
+```
+
+###Questions and critical inferences: 
+1. What are the patterns in Readmission rates for the diseases over states?
+2. Is there a correlation between the incidence of diseases and number of hospitals? if so, what is it's direction? Is there a confounding variable?
+3. Is there any correlation between availability of emergency services and mortality rates of various diseases?
+4. What is the reason for the lack of emergency services in some hopsitals? 
+5. For a complete picture, one also needs to include the population data of each state as there seems to be a positive correlation between population and number of hospitals in a state.

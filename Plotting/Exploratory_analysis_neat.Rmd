@@ -1,0 +1,575 @@
+---
+title: "Exploratory Analysis of Hospital Data in US"
+author: "Kishore"
+date: "14th September 2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r echo=FALSE}
+#To load external libraries
+library(ggplot2)
+library(data.tree)
+```
+
+
+
+###Questions:
+1. In the hospital-data.csv:
+    +   How many cities, counties, states, Hospital types and ownership types are there?
+    +   Overall distribution of emergency service availability.
+    +   Distribution of hospitals in top 15 states
+    +   Study heat maps and the way to produce them in R
+    +   A heat map of hospital ownership types in each state. (Are there particular states where hospitals of a particular kind are found very frequently?)
+2.  In the outcome-of-care-measures.csv file:
+    +   Histograms of the mortality rates due to heart attack, heart failure and pneumonia. individual, paired and triple parameter histograms to be made.
+    +   State-wise incidence of heart attack, heart failure and pneumonia. (Are there states where the incidence of disease is high? Can this be linked to the kind of hospitals in those states?)
+    +   Come up with a function to reduce the column names' length. RegEx can be explored for this.
+
+
+
+
+###Hospital information: "hospital-data.csv"
+
+The structure of the data, obtained by the *str()* function is given below.
+```{r eval=TRUE}
+Hospital_data <- read.csv("hospital-data.csv", colClasses = "character")
+str(Hospital_data)
+```
+
+The dataset provides basic information about the identity and location of the hospital, along with a few extra bits like the ownership, type and availability of emergency services. 
+
+####Number of states, counties etc..
+
+The number of states in the states column can be obtained by evaluating the length of the unique function as below:
+```{r eval=TRUE}
+length(unique(Hospital_data$State))
+```
+Similarly the number of unique values in the other columns can be evaluated to be the following:
+
+```{r eval=TRUE, echo=FALSE}
+print(paste("Number of states are:", states <- length(unique(Hospital_data$State))))
+print(paste("Number of Counties are:", counties <- length(unique(Hospital_data$County))))
+print(paste("Number of Cities are:", cities <- length(unique(Hospital_data$City))))
+print(paste("Number of Hospital types are:", hospital_types <- length(unique(Hospital_data$Hospital.Type))))
+print(paste("Number of types of Hospital ownerships are:", ownerships <- length(unique(Hospital_data$Hospital.Ownership))))
+```
+
+On an average there are `r round(cities/counties)` cities per county and about `r round(counties/states)` counties per state. 
+
+The ownership data is misleading due to a data-entry inconsostancy, as shown below.
+```{r echo=FALSE}
+for (i in unique(Hospital_data$Hospital.Ownership))
+    print(i)
+```
+All the types more than one word have been counted twice due to insertion of additional spaces and hyphens. This can be rectified using Regular expression function gsub, which takes 3 arguments, the regular expression, the character string to replace the expression with and a vector of target strings. It replaces all the occurences of the regular expression.
+
+```{r}
+Hospital_data$Hospital.Ownership <- gsub("Hospital District or Authority", "District", Hospital_data$Hospital.Ownership)
+Hospital_data$Hospital.Ownership <- gsub(" +", ".", gsub("-", " ", Hospital_data$Hospital.Ownership)) #To remove duplicates
+Hospital_data$Hospital.Ownership <- gsub("non.profit.", "", Hospital_data$Hospital.Ownership) #To simplify the names
+Hospital_data$Hospital.Ownership <- gsub("Government", "Govt", Hospital_data$Hospital.Ownership)
+
+unique(Hospital_data$Hospital.Ownership)
+```
+
+
+####Distribution of hospitals in top 15 states
+
+The top 15 states can be obtained by first getting a frequency table, sorting it and taking the first 15 as follows:
+```{r}
+First_15_states <- sort(table(Hospital_data$State), decreasing = TRUE)[1:15]
+First_15_states
+```
+Similarly, the bottom 15 states can be obtained and a barplot can serve well in visualizing the distribution
+```{r warning=FALSE}
+Statewise_data <- sort(table(Hospital_data$State), decreasing = TRUE)
+attach(Hospital_data)
+par(mfrow = c(1,2))
+barplot(sort(table(State), decreasing = TRUE)[1:15], width = 2, col = rainbow(20), xlab = "States", ylab = "# of Hospitals", main = "Distribution of Hospitals over States", las = 3)
+barplot(sort(table(State))[15:1], width = 2, col = rainbow(20), xlab = "States", ylab = "# of Hospitals", main = "Distribution of Hospitals over States", las = 3)
+```
+
+For a better picture of the overall distribution, a scatter plot with states renamed with numbers from 1 to 56 (alphabetically) is given below. The least number of hospitals in a state is 1 (AS, GU and MP) while the highest is more than 350 in TX and CA. CA and TX have maximum population (source: http://www.ipl.org/div/stateknow/popchart.html), followed by NY, FL and the other states pretty much in the same order as the number of hospitals. This indicates a possible positive correlation between state population and number of hospitals.
+
+```{r echo=FALSE}
+plot(1:56, as.numeric(table(Hospital_data$State)), ylab = "Number of Hospitals", xlab = "States", col = "Red")
+```
+
+
+####Distribution showing the emergency service availability
+
+The emergency service availability is given in "Emergency.Services" column. The data can be represented in the form of the frequency table below, 
+```{r echo=FALSE}
+emergency_avail <- table(Hospital_data$Emergency.Services)
+emergency_avail
+```
+
+```{r echo=FALSE}
+names(emergency_avail) = c("No","Data Not Available", "Yes")
+```
+which then can be converted into a bargraph
+```{r}
+barplot(emergency_avail,
+        log = "y", 
+        col = c("Red", "Grey", "Green"), 
+        xlab = "Availability of Emergency services", 
+        ylab = "# of Hospitals", 
+        main = "Distribution of Emergency service availability in the hospitals",
+        ylim = c(1,5000))
+box()
+```
+
+About `r round(100*emergency_avail["Yes"]/sum(emergency_avail))`% hospitals have emergency services available, ~`r round(100*emergency_avail["No"]/sum(emergency_avail))`% don't. For the hospitals that do not have emergency services, geographical location (state) and hospital ownership. Additional factors could be monetary, hospital specializations etc.
+
+```{r echo=FALSE}
+emergency_na <- Hospital_data[Hospital_data$Emergency.Services == "No", ]
+barplot(sort((table(emergency_na$Hospital.Ownership)/ emergency_avail["No"]), decreasing = TRUE), col = rainbow(8), xlab = "Hospital Ownership", ylab = "Number of Hospitals", main = "Lack of emergency services w.r.t. Hospital Ownership", las = 3, ylim = c(0,0.5))
+
+barplot(sort((table(emergency_na$State)/ emergency_avail["No"]), decreasing = TRUE)[1:30], col = rainbow(30), xlab = "States", ylab = "Number of Hospitals", main = "Lack of emergency services w.r.t. States", las = 3, ylim = c(0,0.15))
+```
+
+These plots show that Proprietary and Voluntary Private hospitals comprise most(~70%) of the hospitals lacking emergency services. The states however, do not have a significant contribution to the number individually. And the fact that CA and TX have the maximum number of hospitals could explain their share of hospitals with no emergency services being high.
+There could, however, be other factors for which data is not available here.
+
+
+
+####A heatmap of hospital ownership type vs state
+
+A heatmap can help one visualize contingency tables and draw logical inferences. The heatmap function of basegraphics requires a numeric matrix/table. For the Ownership and state data, the table has been generated below. For a better comparision, the fraction of ownership over the total number of hospitals in a state has been considered.
+
+```{r}
+ownership_data <- table(Hospital_data$Hospital.Ownership, Hospital_data$State)
+ownership_freq <- apply(ownership_data, 2, function(x)(replace(x, 1:length(x), x/sum(x))))
+df_heatmap_ownership_freq <- data.frame(as.table(ownership_freq))
+ggplot(df_heatmap_ownership_freq, aes(Var1, Var2, width = 0.95, height = 0.85)) + 
+    geom_tile(aes(fill=Freq)) +
+     coord_flip() +
+    labs(y = "State",
+         x = "Hospital Ownership Fractions",
+         title = "Heatmap of Hospital ownership over states",
+         fill = "") +
+    theme_bw() +
+    theme_gray(base_size = 8) +
+    #scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+    theme(axis.text.x = element_text(size = 0.8 * 8, angle = 90, vjust = 0), axis.text.y = element_text(size = 10), aspect.ratio = 40/56, title = element_text(size = 14, hjust = 5)) 
+```
+
+```{r}
+df_total_hospitals <- data.frame(table(Hospital_data$State))
+ggplot(df_total_hospitals, aes(Var1, "Number of Hospitals", width = 0.8)) + 
+    geom_tile(aes(fill=Freq)) +
+    labs(x = "State",
+         y = "",
+         title = "Heatmap of Number of hospitals in each state",
+         fill = "") +
+    theme_minimal() +
+    theme_gray(base_size = 8) +
+    scale_x_discrete(expand = c(0, 0)) + scale_y_discrete(expand = c(0, 0)) +
+     theme(axis.text.x = element_text(size = 0.8 * 8, angle = 90, vjust = 0), axis.text.y = element_text(size = 10), aspect.ratio = 5/56, title = element_text(size = 14))
+```
+
+The fraction of Government State hospitals seems to have been maintained throughout the states. States having a good fraction of Government Local hospitals have significantly lesser fractions of other types of hospitals. These states could be the country reegion of the U.S. 
+
+###Outcome of care data: "outcome-of-care.csv"
+
+There is 46 columns of information about 4706 hospitals in U.S. The structure can be described as below:
+
+```{r echo=FALSE}
+outcome_of_care_node <- Node$new("Hospital outcome of care data")
+    basic <- outcome_of_care_node$AddChild("Basic info - Name, location, ownership etc ; Cols 1:10")
+    mortality <- outcome_of_care_node$AddChild("Mortality rate related; Cols 11:28")
+        heart_attack <- mortality$AddChild("Heart Attack")
+            rates <- heart_attack$AddChild("Mortality Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Mortality Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Mortality Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+        heart_failure <- heart_attack$AddSibling("Heart Failure")
+            rates <- heart_failure$AddChild("Mortality Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Mortality Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Mortality Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+        pneumonia <- heart_attack$AddSibling("Pneumonia")
+            rates <- pneumonia$AddChild("Mortality Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Mortality Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Mortality Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+    readmission <- mortality$AddSibling("Readmission rate related; Cols 29:46")
+        heart_attack <- readmission$AddChild("Heart Attack")
+            rates <- heart_attack$AddChild("Readmission Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Readmission Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Readmission Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+        heart_failure <- heart_attack$AddSibling("Heart Failure")
+            rates <- heart_failure$AddChild("Readmission Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Readmission Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Readmission Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+        pneumonia <- heart_attack$AddSibling("Pneumonia")
+            rates <- pneumonia$AddChild("Readmission Rate due to the disease")
+            comparision <- rates$AddSibling("Comparision to the U.S. average")
+            lower_estimate <- rates$AddSibling("Lower Estimate of Readmission Rate")
+            upper_estimate <- rates$AddSibling("Upper Estimate of Readmission Rate")
+            patients <- rates$AddSibling("Number of Patients")
+            footnotes <- rates$AddSibling("Footnotes")
+    
+outcome_of_care_node
+```
+
+
+####Histograms for mortality rates from heart attack, heart failure and pneumonia
+
+The following histograms show the distribution of mortality rates of each disease in comparision to the other.
+```{r warning=FALSE, echo = FALSE}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack)
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure)
+outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia <- as.numeric(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia)
+
+attach(outcome)
+par(mfrow = c(2,2))
+hist(Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack,
+     xlab = "30 day Mortality Rates", 
+     main = "Heart Attack vs Heart Failure",
+     ylab = "Number of Hospitals",
+     xlim = c(6,21),
+     col=rgb(0,0,1,1/4),
+     breaks = 40,
+     ylim = c(0,800),
+     border = F
+     )
+hist(Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure,
+     col=rgb(0,0.5,1,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F
+     )
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Attack", "Heart Failure"), 
+       fill = c(rgb(0,0,1,1/4), rgb(0,0.5,1,1/4)))
+
+hist(Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack,
+     xlab = "30 day Mortality Rates", 
+     main = "Heart Attack vs Pneumonia",
+     ylab = "Number of Hospitals",
+     xlim = c(6,21),
+     col=rgb(0,0,1,1/4),
+     breaks = 40,
+     ylim = c(0,800),
+     border = F
+     )
+hist(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia,
+     col=rgb(1,0,0,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F)
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Attack", "Pneumonia"), 
+       fill = c(rgb(0,0,1,1/4), rgb(1,0,0,1/4)))
+
+
+hist(Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure,
+     xlab = "30 day Mortality Rates", 
+     main = "Heart Failure vs Pneumonia",
+     ylab = "Number of Hospitals",
+     xlim = c(6,21),
+     col=rgb(0,0.5,1,1/4),
+     breaks = 40,
+     ylim = c(0,800),
+     border = F
+     )
+hist(outcome$Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia,
+     col=rgb(1,0,0,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F)
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Failure", "Pneumonia"), 
+       fill = c(rgb(0,0.5,1,1/4), rgb(1,0,0,1/4)))
+
+detach(outcome)
+
+```
+
+The mortality rate from Heart Attack is higher than that of Pneumonia or Heart Failure, which seem to have fairly similar mortality rates. 
+Similarly, we can observe the histograms for readmission rates below.
+
+```{r warning=FALSE, echo = FALSE}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+
+outcome$Hospital.30.Day.Readmission.Rates.from.Heart.Attack <- as.numeric(outcome$Hospital.30.Day.Readmission.Rates.from.Heart.Attack)
+outcome$Hospital.30.Day.Readmission.Rates.from.Heart.Failure <- as.numeric(outcome$Hospital.30.Day.Readmission.Rates.from.Heart.Failure)
+outcome$Hospital.30.Day.Readmission.Rates.from.Pneumonia <- as.numeric(outcome$Hospital.30.Day.Readmission.Rates.from.Pneumonia)
+
+attach(outcome)
+par(mfrow = c(2,2))
+hist(Hospital.30.Day.Readmission.Rates.from.Heart.Attack,
+     xlab = "30 day Readmission Rates", 
+     main = "Heart Attack vs Heart Failure",
+     ylab = "Number of Hospitals",
+     xlim = c(15,31),
+     col=rgb(0,0,1,1/4),
+     breaks = 40,
+     ylim = c(0,950),
+     border = F
+     )
+hist(Hospital.30.Day.Readmission.Rates.from.Heart.Failure,
+     col=rgb(0,0.5,1,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F
+     )
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Attack", "Heart Failure"), 
+       fill = c(rgb(0,0,1,1/4), rgb(0,0.5,1,1/4)))
+
+hist(Hospital.30.Day.Readmission.Rates.from.Heart.Attack,
+     xlab = "30 day Readmission Rates", 
+     main = "Heart Attack vs Pneumonia",
+     ylab = "Number of Hospitals",
+     xlim = c(15,31),
+     col=rgb(0,0,1,1/4),
+     breaks = 40,
+     ylim = c(0,950),
+     border = F
+     )
+hist(Hospital.30.Day.Readmission.Rates.from.Pneumonia,
+     col=rgb(1,0,0,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F)
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Attack", "Pneumonia"), 
+       fill = c(rgb(0,0,1,1/4), rgb(1,0,0,1/4)))
+
+
+hist(Hospital.30.Day.Readmission.Rates.from.Heart.Failure,
+     xlab = "30 day Readmission Rates", 
+     main = "Heart Failure vs Pneumonia",
+     ylab = "Number of Hospitals",
+     xlim = c(15,31),
+     col=rgb(0,0.5,1,1/4),
+     breaks = 40,
+     ylim = c(0,950),
+     border = F
+     )
+hist(Hospital.30.Day.Readmission.Rates.from.Pneumonia,
+     col=rgb(1,0,0,1/4),
+     breaks = 40,
+     add = TRUE,
+     border = F)
+box()
+Axis(side = 1, x = c(6,8,10,12,14,16,18,20))
+legend("topright", legend = c("Heart Failure", "Pneumonia"), 
+       fill = c(rgb(0,0.5,1,1/4), rgb(1,0,0,1/4)))
+
+detach(outcome)
+```
+
+Readmission rates(mode) are higher for Heart failure followed by heart attack and Pneumonia respectively. If we compare the mortality and readmission histograms, we can see that the mode readmission rate is higher by atleast 5 units. In terms of fractions, that is atleast 1.5 times more. The frquencies, which indicate the number of hospitals, tends to remain more or less similar
+
+
+
+####State-wise incidence of Heart attack, Heart failure and Pneumonia
+
+The statewise incidence can be best observed using the heatmap below.Fraction of incidence of each disease over the total incidence in the state is used to compare the states as the total incidences of each states are dependent on the population and hence vary drastically within states.
+
+```{r echo=FALSE, warning=FALSE}
+data <- rbind(tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Heart.Attack), outcome$State, sum, na.rm = TRUE),
+              tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Heart.Failure), outcome$State, sum, na.rm = TRUE),
+              tapply(as.numeric(outcome$Number.of.Patients...Hospital.30.Day.Death..Mortality..Rates.from.Pneumonia), outcome$State, sum, na.rm = TRUE))
+
+colnames(data) <- unique(outcome$State)
+rownames(data) <- c("Heart Attack", "Heart Failure", "Pneumonia")
+data <- apply(data, 2, function(x)(replace(x, 1:length(x), x/sum(x, na.rm = TRUE))))
+df_incidence_rate <- as.data.frame(as.table(data))
+
+ggplot(df_incidence_rate, aes(Var2, Var1, width = 0.87, height = 0.98)) + 
+    geom_tile(aes(fill=Freq)) +
+    labs(x = "State",
+         y = "Disease",
+         title = "Heatmap of fraction of disease incidence over states",
+         fill = "") +
+    #scale_x_continuous() + scale_y_continuous() +
+    theme_gray(base_size = 8) +
+    theme(axis.text.x = element_text(size = 0.8 * 8, angle = 90, vjust = 0), axis.text.y = element_text(size = 10), title = element_text(size = 14, hjust = 5))
+```
+
+Incidence of heart attack is significantly lesser as compared to the other two diseases consistently throughout the states. Pneumonia and Heart Failure seem to have similar incidence rates overall.
+
+###Reducing the size of column names of outcome-of-care data
+
+The column names in the data file are too large, and hence an attempt is made below to reduce them without loss of data. The column names of outcome of care data are as follows:
+```{r echo=FALSE}
+colnames_outcome <- colnames(outcome)
+colnames_outcome
+```
+
+By looking at the column names, we can see that "Hospital.30.Day." phrase has been repeated throughout. This does provide the information on the duration of data collection, but it can be provided in a desription of the dataset and hence can be removed from the columnnames. Similarly, the entire data only presents rates and hence that can also be removed from columnnames. Similarly, in mortality rates, the term death is usless hence can be removed. The phrases like "Upper Readmission Estimate" can be reduced to "Upper Estimate" as "Readmission" is already present in the name at the end.
+
+```{r}
+outcome <- read.csv("outcome-of-care-measures.csv", colClasses = "character")
+colnames_outcome <- colnames(outcome)
+patterns <- list("Hospital.30.Day.", "Rates.", "Death.", "from.")
+dummy <- lapply(patterns, function(x)(colnames_outcome <<- gsub(x, "", colnames_outcome)))
+patterns2 <- list("Readmission.Estimate", "Mortality.Estimate")
+dummy <- lapply(patterns2, function(x)(colnames_outcome <<- gsub(x, "Estimate", colnames_outcome)))
+#patterns3 <- list("....Mortality.", "...Readmission")
+#dummy <- lapply(patterns3, function(x)(colnames_outcome <<- gsub(x, "", colnames_outcome)))
+colnames_outcome
+colnames(outcome) <- colnames_outcome
+```
+
+Furthermore, as shown in the structure of the data earlier, the last 36 columns can be divided into 2 sections, which in turn can be divided into 3, each containing 6 columns of information. This can be used to format the data further. And for that, the sections must be grouped.
+
+```{r}
+
+colnames(outcome) <- colnames_outcome
+basic_info <- outcome[,1:10]
+Heart_Attack <- outcome[11:16]
+Heart_Failure <- outcome[17:22]
+Pneumonia <- outcome[23:28]
+Mortality_Rate <- list(Heart_Attack, Heart_Failure, Pneumonia)
+names(Mortality_Rate) <- c("Heart_Attack", "Heart_Failure", "Pneumonia")
+Heart_Attack <- outcome[29:34]
+Heart_Failure <- outcome[35:40]
+Pneumonia <- outcome[41:46]
+Readmission_Rate <- list(Heart_Attack, Heart_Failure, Pneumonia)
+names(Readmission_Rate) <- c("Heart_Attack", "Heart_Failure", "Pneumonia")
+outcome_of_care <- list(basic_info, Mortality_Rate, Readmission_Rate)
+names(outcome_of_care) <- c("Basic_info", "Mortality_Rate", "Readmission_Rate")
+outcome_of_care_node_list <- as.Node(outcome_of_care)
+outcome_of_care_node_list
+```
+
+
+###Questions and critical inferences: 
+1. What are the patterns in Readmission rates for the diseases over states?
+2. Is there a correlation between the incidence of diseases and number of hospitals? if so, what is it's direction? Is there a confounding variable?
+3. Is there any correlation between availability of emergency services and mortality rates of various diseases?
+4. What is the reason for the lack of emergency services in some hopsitals? 
+5. For a complete picture, one also needs to include the population data of each state as there seems to be a positive correlation between population and number of hospitals in a state.
+6. What does the number of patients really signify? The sample set for mortality and readmission seems to vary as the number of patients are different. One would assume that the data was built upon the same set of patients to see the mortality and readmission.
+
+
+##Part - 2: 
+
+###Correlation between incidence of diseases and the number of hospitals:
+
+It is not very clear whether to consider the number of patients in the mortality or the readmission studies for disease incidence and hence I will consider both. 
+
+
+```{r echo = FALSE, eval = FALSE, warning=FALSE}
+number_hos <- table(outcome$State)
+incidence_cols <- outcome[,grep("Number.", colnames(outcome))]
+incidence_cols <- apply(incidence_cols, 2, as.numeric)
+
+```
+
+```{r warning=FALSE, echo=FALSE}
+number_hos <- table(outcome$State)
+incidence_heart_attack <- data.frame(number_hos, 
+                                     apply(
+                                         (data <- data.frame(outcome$State, 
+                                                    apply(outcome[,grep("Number.*.Attack", colnames(outcome))], 2, as.numeric)))[-1],
+                                         2, 
+                                         function(x) 
+                                             (
+                                                 tapply(x, data$outcome.State, sum, na.rm = TRUE)
+                                             )
+                                         )
+                                     )
+incidence_heart_failure <- data.frame(number_hos, 
+                                     apply(
+                                         (data <- data.frame(outcome$State, 
+                                                    apply(outcome[,grep("Number.*.Failure", colnames(outcome))], 2, as.numeric)))[-1],
+                                         2, 
+                                         function(x) 
+                                             (
+                                                 tapply(x, data$outcome.State, sum, na.rm = TRUE)
+                                             )
+                                         )
+                                     )
+incidence_pneumonia <- data.frame(number_hos, 
+                                     apply(
+                                         (data <- data.frame(outcome$State, 
+                                                    apply(outcome[,grep("Number.*.onia", colnames(outcome))], 2, as.numeric)))[-1],
+                                         2, 
+                                         function(x) 
+                                             (
+                                                 tapply(x, data$outcome.State, sum, na.rm = TRUE)
+                                             )
+                                         )
+                                     )
+p <- ggplot() + labs( x = "Number of Hospitals", y = "Number of patients") +theme_classic() + geom_vline(xintercept = 175)
+
+
+
+hrt_atc_plt <- p + geom_point(data = incidence_heart_attack, aes(x = Freq, y = Number.of.Patients....Mortality..Heart.Attack, color = "Mortality")) + 
+    geom_point(data = incidence_heart_attack,aes(x = Freq, y = Number.of.Patients...Readmission.Heart.Attack, color = "Readmission")) +  
+        labs(
+        title = "Incidence of Heart Attack vs Number of Hospitals",
+        color = ""
+    ) +
+    geom_smooth(method = 'lm', data = incidence_heart_attack, aes(x = Freq, y = Number.of.Patients...Readmission.Heart.Attack), formula = y ~ x, colour = "black") + geom_hline(yintercept = 20000)
+
+
+hrt_fail_plt <- p + geom_point(data = incidence_heart_failure, aes(x = Freq, y = Number.of.Patients....Mortality..Heart.Failure, color = "Mortality")) + 
+    geom_point(data = incidence_heart_failure, aes(x = Freq, y = Number.of.Patients...Readmission.Heart.Failure, color = "Readmission")) +  
+        labs(
+        title = "Incidence of Heart Failure vs Number of Hospitals",
+        color = ""
+    ) +
+    geom_smooth(method = 'lm', data = incidence_heart_failure, aes(x = Freq, y = Number.of.Patients...Readmission.Heart.Failure), formula = y ~ x, colour = "black") + geom_hline(yintercept = 50000) 
+
+pne_plt <- p + geom_point(data = incidence_pneumonia, aes(x = Freq, y = Number.of.Patients....Mortality..Pneumonia, color = "Mortality")) + 
+    geom_point(data = incidence_pneumonia, aes(x = Freq, y = Number.of.Patients...Readmission.Pneumonia, color = "Readmission")) +  
+        labs(
+        title = "Incidence of pneumonia vs Number of Hospitals",
+        color = ""
+    ) +
+    geom_smooth(method = 'lm', data = incidence_pneumonia, aes(x = Freq, y = Number.of.Patients...Readmission.Pneumonia), formula = y ~ x, colour = "black") + geom_hline(yintercept = 40000)
+
+hrt_atc_plt 
+hrt_fail_plt
+pne_plt
+```
+Most of the points lie in the lower left quadrant near the origin. There are no extreme cases i.e., in upper left quadrant(higher number of patients and lower number of hospitals) or in lower right quadrant(high hospitals and low patients). This, coupled with the regression line suggest that there is a strong correlation between the number of hospitals and the number of patients in a state. However, on a closer inspection of data, we can see that the data is all recorded in hospitals and hence constitutes only of cases that were registered in the hospitals. Hence, more the number of hospitals, more the number of patients. One inference that can be made from this is that average capacity of hospitals (total number of patients/total number of hospitals) is roughly the same throughout. if there were any significant differences in this quantity, we would have seen points significantly farther from the regression line or lying in quadrants 2 and 4. 
+
+####Availability of Emergency Services vs Mortality Rates
+Emergency service availability may affect the mortality rates as unavailability of the services could lead to deaths. The same is explored here.
+```{r echo=FALSE}
+emergency_statewise <- table(Hospital_data$State, Hospital_data$Emergency.Services)
+emergency_statewise_fraction <- apply(emergency_statewise, 1, function(x){replace(x, 1:length(x), x/sum(x))})
+dummy <- apply(emergency_statewise, 1, function(x)(replace(x, 1:length(x), x/sum(x))))
+mortality_statewise <- cbind.data.frame(apply(outcome[, c(".Mortality..Heart.Attack", ".Mortality..Heart.Failure", ".Mortality..Pneumonia")], 2, as.numeric), outcome$State)
+mortality_statewise <- apply(mortality_statewise[, -4], 2, function(x) {tapply(x, mortality_statewise[,4], mean, na.rm = T)})
+mortalityVstate <- as.data.frame(cbind(emergency_statewise_fraction[1, rownames(emergency_statewise) %in% names(mortality_statewise[, 1])], mortality_statewise))
+
+ggplot(data = mortalityVstate) + labs( x = "Fraction of hospitals not having emergency services", y = "Mortality Rate", title = "Relation between mortality rate and availability of emergency services") +theme_classic() +
+    geom_point(aes(x = V1, y = .Mortality..Heart.Attack, color = "Heart Attack")) +
+    geom_point(aes(x = V1, y = .Mortality..Heart.Failure, color = "Heart Failure")) +
+    geom_point(aes(x = V1, y = .Mortality..Pneumonia, color = "Pneumonia")) +
+    geom_smooth(method = 'lm', aes(x = V1, y = .Mortality..Heart.Attack), formula = y ~ x, colour = "Red") +
+    geom_smooth(method = 'lm', aes(x = V1, y = .Mortality..Heart.Failure), formula = y ~ x, colour = "Green") +
+    geom_smooth(method = 'lm', aes(x = V1, y = .Mortality..Pneumonia), formula = y ~ x, colour = "Blue") 
+```
+
+Contrary to the hypothesis, it is observed that there is almost no correlation between the two parameters. This could mean that emergency services do not include heart attack, heart failure and pneumonia cases. A wider definition of emergency services is required to ascertain the same.
