@@ -8,8 +8,11 @@
 #
 
 library(shiny)
+library(ggplot2)
+library(dplyr)
 
-bcl <- read.csv("C:/Users/Shrikishore.Hari/Desktop/R/shiny/deanattali/Dean_attali_app/bcl-data.csv",
+
+bcl <- read.csv("C:/Users/Shrikishore.Hari/Desktop/R/R_Learning/shiny/deanattali/Dean_attali_app/bcl-data.csv",
                 stringsAsFactors = FALSE)
 
 # Define server logic required to draw a histogram
@@ -35,5 +38,27 @@ shinyServer(function(input, output) {
            main = "Change of price w.r.t. alcohol content", xlim = xlims, log = "y")
       #abline(lm(x ~ y), col = "red")
   })
+  filtered <- eventReactive(input$go, {
+      bcl %>%
+          filter(Price >= input$priceInput[1],
+                 Price <= input$priceInput[2],
+                 Type == input$typeInput,
+                 Country == input$countryInput
+          )
+  })
+  
+  #filter <- eventReactive(input$go, {filtered()})
+  
+  plot1 <- eventReactive(input$go, {ggplot(filtered(), aes(Alcohol_Content)) +
+          geom_histogram(bins = input$bins2)})
+  
+  output$coolplot <- renderPlot({
+      plot1()
+  })
+  
+  output$results <- renderTable({
+      head(filtered())
+  })
+
   
 })
