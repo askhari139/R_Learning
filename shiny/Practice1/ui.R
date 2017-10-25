@@ -2,75 +2,48 @@ library(shiny)
 library(dplyr)
 
 shinyUI(
-    fluidPage(
-        titlePanel("Uploading Files"),
-    sidebarLayout(sidebarPanel(
-        fileInput(inputId = "file1",
-                  label = "Upload",
-                  accept = ".csv"),
-        checkboxInput("header", "Header", TRUE)
-    ),
-    mainPanel(
-        tableOutput("head")
-    )
-)))
-    
+ fluidPage(
+     ##Uploading the data file with header and other options and displaying it
+        titlePanel("Exploratory Analysis"),
+        sidebarLayout( #Options for loading the file
+            sidebarPanel(
 
-# fluidPage(
-#         
-#         # App title ----
-#         titlePanel("Uploading Files"),
-#         
-#         # Sidebar layout with input and output definitions ----
-#         sidebarLayout(
-#             
-#             # Sidebar panel for inputs ----
-#             sidebarPanel(
-#                 
-#                 # Input: Select a file ----
-#                 fileInput("file1", "Choose CSV File",
-#                           multiple = TRUE,
-#                           accept = c("text/csv",
-#                                      "text/comma-separated-values,text/plain",
-#                                      ".csv")),
-#                 
-#                 # Horizontal line ----
-#                 tags$hr(),
-#                 
-#                 # Input: Checkbox if file has header ----
-#                 checkboxInput("header", "Header", TRUE),
-#                 
-#                 # Input: Select separator ----
-#                 radioButtons("sep", "Separator",
-#                              choices = c(Comma = ",",
-#                                          Semicolon = ";",
-#                                          Tab = "\t"),
-#                              selected = ","),
-#                 
-#                 # Input: Select quotes ----
-#                 radioButtons("quote", "Quote",
-#                              choices = c(None = "",
-#                                          "Double Quote" = '"',
-#                                          "Single Quote" = "'"),
-#                              selected = '"'),
-#                 
-#                 # Horizontal line ----
-#                 tags$hr(),
-#                 
-#                 # Input: Select number of rows to display ----
-#                 radioButtons("disp", "Display",
-#                              choices = c(Head = "head",
-#                                          All = "all"),
-#                              selected = "head")
-#                 
-#             ),
-#             
-#             # Main panel for displaying outputs ----
-#             mainPanel(
-#                 
-#                 # Output: Data file ----
-#                 tableOutput("contents")
-#                 
-#             )
-#             
-#         )))
+                fileInput("file1", "Choose CSV File",
+                          multiple = TRUE,
+                          accept = c("text/csv",
+                                     "text/comma-separated-values,text/plain",
+                                     ".csv")),
+                tags$hr(),
+
+                checkboxInput("header", "Header", TRUE),
+
+                radioButtons("sep", "Separator",
+                             choices = c(Comma = ",",
+                                         Semicolon = ";",
+                                         Tab = "\t"),
+                             selected = ","),
+
+                radioButtons("quote", "Quote",
+                             choices = c(None = "",
+                                         "Double Quote" = '"',
+                                         "Single Quote" = "'"),
+                             selected = '"'),
+
+                tags$hr(),
+
+                radioButtons("disp", "Display",
+                             choices = c(Head = "Head",
+                                         All = "all"),
+                             selected = "Head")
+
+            ),
+
+            mainPanel(
+                tableOutput("dataHead"), #showing the data
+                selectInput(inputId = "columns",
+                            label = "Column names in the file",
+                            choices = colnames(data_file)) #to show the columnnames
+
+            )
+
+        )))

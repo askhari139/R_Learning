@@ -59,6 +59,8 @@ shinyServer(function(input, output) {
   output$results <- renderTable({
       head(filtered())
   })
+  
+  output$country <- renderPrint(unique(bcl$country))
 
   
 })
