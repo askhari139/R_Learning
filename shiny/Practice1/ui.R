@@ -40,10 +40,22 @@ shinyUI(
 
             mainPanel(
                 tableOutput("dataHead"), #showing the data
-                selectInput(inputId = "columns",
-                            label = "Column names in the file",
-                            choices = colnames(data_file)) #to show the columnnames
-
+                uiOutput("cols")
             )
-
-        )))
+        ),
+        HTML("<center><h3>Interactive Plot window</h3></center>"),
+        sidebarLayout(
+            sidebarPanel(
+                uiOutput("x"),
+                uiOutput("y"),
+                selectInput(inputId = "plotType", label = "Type of plot",
+                            choices = c(Scatterplot = "geom_point()",
+                                        Hisogram = "geom_hist()"
+                            ))
+                
+            ),
+            mainPanel(
+                plotOutput("plot")
+            )
+        )
+    ))
