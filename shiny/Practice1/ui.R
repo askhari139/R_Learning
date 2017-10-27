@@ -1,10 +1,14 @@
 library(shiny)
 library(dplyr)
+library(ggplot2)
+
 
 shinyUI(
  fluidPage(
      ##Uploading the data file with header and other options and displaying it
-        titlePanel("Exploratory Analysis"),
+     titlePanel("", windowTitle = "Data Visualization"),
+     HTML("<center><h1>Data Visualization</h1></center>"), hr(), br(),
+     HTML("<center><h3>Input data window</h3></center>"),
         sidebarLayout( #Options for loading the file
             sidebarPanel(
 
@@ -39,22 +43,34 @@ shinyUI(
             ),
 
             mainPanel(
-                tableOutput("dataHead"), #showing the data
-                uiOutput("cols")
+                tableOutput("dataHead") #showing the data
+                #uiOutput("cols")
             )
         ),
         HTML("<center><h3>Interactive Plot window</h3></center>"),
         sidebarLayout(
             sidebarPanel(
+                uiOutput("plotType"),
                 uiOutput("x"),
                 uiOutput("y"),
-                selectInput(inputId = "plotType", label = "Type of plot",
-                            choices = c(Scatterplot = "geom_point()",
-                                        Hisogram = "geom_hist()"
-                            ))
+                conditionalPanel(
+                    condition = "input.plotType == 'geom_point(aes_string(input$x, input$y))'",
+                    checkboxInput(inputId = "line", label = "Add best fit line")
+                ),
+                checkboxInput("save", "Save the plot"),
+                conditionalPanel(
+                    condition = "input.save",
+                    selectInput("imgFormat", "Image Format", 
+                                choices = c(PNG = ".png",
+                                            JPG = ".jpg",
+                                            TIFF = ".tiff")),
+                    textInput("imgName", "Filename")
+                    
+                )
                 
             ),
             mainPanel(
+                textInput(inputId = "plotLabel", label = "Title for the plot"),
                 plotOutput("plot")
             )
         )
