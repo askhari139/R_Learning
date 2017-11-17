@@ -23,4 +23,5 @@ ggplot(data.frame(x1 = 1:10, y1 = 1:10), aes_string(p, q)) + eval(z)
 ##must ggplot always come first?
 eval(z) + ggplot(data.frame(x1 = 1:10, y1 = 1:10), aes_string(p, q)) #returns NULL
  
-geom_
+ggplot(data.frame(x1 = 1:10, y1 = 1:100), aes(factor(eval(parse(text = p))))) + geom_bar()
+       

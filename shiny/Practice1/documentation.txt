@@ -1,0 +1,41 @@
+*****Server File:
+
+***Internal Variables
+
+*file_data -> a reactive function that, when called, reads the data from a given csv
+    file. 
+*numerics -> a reactive function that, when called, results in a vector of numeric
+    data colums in file_data().
+*plt -> a reactive function that, when called, returns a ggplot statement designed 
+    for a desired plot with user input parameters.
+*plotWinTit -> an event-reactive function that, when called, returns the title for the
+    plotting part of the page. Activates when "Proceed to plot" button is clicked.
+*plotWin -> an event-reactive function with same trigger as plotWinTit which returns 
+    the UI for the parameter selection and plot windows.
+    
+***Output list of variables
+
+*dataHead -> returns the head of data table read from the csv file. requires the
+    input of a valid file.
+
+*plotType -> UI for selection of plot type. 
+*x -> a UI for scrolldown menu for valid columns that can be used as abscissa based
+    on the plot type.
+*y -> same as above for Ordinate.
+
+note: the above 3 UI elements were written here instead of in UI file because 
+    1) modularity so as to not clutter up the plot window UI to the extent possible
+    2) x and y contain conditional elements dependent on input variables and which will decide the options available for them. If we were to use conditional Panel,
+it would require multiple such panels...
+
+*plotWindowTitle -> UI of title of the plot window. This is based on           plotWinTit and hence is reactive
+*plotWindow -> UI of the plot window. 
+note: again, plot window UI is here instead of the UI file because of the requirement of event reactivity.
+
+
+
+***** UI file
+
+
+
+    

@@ -1,0 +1,6 @@
+Bugs:
+
+30th october
+
+6:00 - plot button only working the first time. axis change automatically updates
+the plot. but type change requires plot button.
